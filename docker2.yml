@@ -1,0 +1,74 @@
+---
+- hosts: my_ec2_instance
+  become: yes  # If you need sudo privileges for the tasks
+  vars:
+    container_count: 1
+    default_container_name: docker
+    docker_hub_username: dckerbeniii  # Your Docker Hub username
+    docker_hub_image_name_1: mysql  # Image name for MySQL
+    docker_hub_image_tag_1: mysql  # Tag for MySQL image
+    docker_hub_image_name_2: node   # Image name for Node.js
+    docker_hub_image_tag_2: node   # Tag for Node.js image
+
+  tasks:
+    - name: Install aptitude and required system packages
+      apt:
+        name: "{{ item }}"
+        state: latest
+        update_cache: true
+      loop:
+        - aptitude
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+        - python3-pip
+        - virtualenv
+        - python3-setuptools
+        - python3-docker
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Update apt and install docker-ce
+      apt:
+        name: docker-ce
+        state: latest
+        update_cache: true
+
+    - name: Pull Docker image from Docker Hub - MySQL
+      community.docker.docker_image:
+        name: "{{ docker_hub_username }}/{{ docker_hub_image_name_1 }}"
+        tag: "{{ docker_hub_image_tag_1 }}"
+        source: pull
+
+    - name: Pull Docker image from Docker Hub - Node
+      community.docker.docker_image:
+        name: "{{ docker_hub_username }}/{{ docker_hub_image_name_2 }}"
+        tag: "{{ docker_hub_image_tag_2 }}"
+        source: pull
+
+    - name: Create Docker containers - MySQL
+      community.docker.docker_container:
+        name: "{{ default_container_name }}-mysql{{ item }}"
+        image: "{{ docker_hub_username }}/{{ docker_hub_image_name_1 }}:{{ docker_hub_image_tag_1 }}"
+        state: started
+        ports:
+          - "3306:3306"  # Maps container port 3306 to host port 3306
+      with_sequence: start=1 end={{ container_count }}
+
+    - name: Create Docker containers - Node
+      community.docker.docker_container:
+        name: "{{ default_container_name }}-node{{ item }}"
+        image: "{{ docker_hub_username }}/{{ docker_hub_image_name_2 }}:{{ docker_hub_image_tag_2 }}"
+        state: started
+        ports:
+          - "3000:3000"
+      with_sequence: start=1 end={{ container_count }}
